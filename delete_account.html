@@ -24,15 +24,19 @@ const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
 const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
 
-// ⚠️ v2 正確初始化用法
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// CDN 下直接用 supabase.createClient
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
 loginBtn.addEventListener('click', async () => {
-  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.href
+    }
+  });
   if (error) {
     messageEl.textContent = 'Login failed: ' + error.message;
   }
