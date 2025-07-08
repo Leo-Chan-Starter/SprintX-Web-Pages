@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Account</title>
+  <style>
+    body {font-family: Arial, sans-serif; margin: 40px; background:#f7f7f7;}
+    main {background:#fff; padding:20px; border-radius:8px; max-width:600px; margin:auto; box-shadow:0 2px 4px rgba(0,0,0,0.1); text-align:center;}
+    button {padding:10px 20px; font-size:16px; cursor:pointer;}
+    #message {margin-top:20px; font-weight:bold;}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main>
+  <h1>Delete Account</h1>
+  <p>Sign in with Google below to permanently delete your Phys MCQ SprintX account. Logging in on this page will immediately remove your account and all stored data.</p>
+  <button id="login">Sign in with Google</button>
+  <div id="message"></div>
+</main>
+<script>
+const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
+const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
+
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const loginBtn = document.getElementById('login');
+const messageEl = document.getElementById('message');
+
+loginBtn.addEventListener('click', async () => {
+  const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+  if (error) {
+    messageEl.textContent = 'Login failed: ' + error.message;
+  }
+});
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    loginBtn.disabled = true;
+    messageEl.textContent = 'Deleting account...';
+    const token = session.access_token;
+    try {
+      const res = await fetch(DELETE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (res.ok) {
+        messageEl.textContent = 'Account deletion complete.';
+      } else {
+        messageEl.textContent = data.error || 'No such account found.';
+      }
+    } catch (err) {
+      messageEl.textContent = 'Error: ' + err;
+    }
+    await supabase.auth.signOut();
+  }
+});
+</script>
+</body>
+</html>
