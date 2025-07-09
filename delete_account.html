@@ -21,39 +21,40 @@
       -webkit-backdrop-filter: blur(16px) saturate(180%);
       background-color: rgba(255,255,255,0.55);
       border-radius: 20px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.10);
       padding: 32px 20px;
       max-width: 440px;
       width: 100%;
       text-align: center;
     }
     button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 20px;
+      padding: 10px 24px;
+      font-size: 17px;
+      font-weight: bold;
       border-radius: 12px;
       border: none;
-      background: rgba(255,255,255,0.32);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      transition: background 0.2s;
+      margin-top: 30px;
+      background: linear-gradient(90deg, #4f8cff 10%, #79f1fc 90%);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(80,120,200,0.1);
+      cursor: pointer;
+      transition: opacity 0.2s;
     }
-    button:hover { background: rgba(240,240,255,0.6); }
-    #message { margin-top: 22px; font-weight: bold; min-height: 28px;}
+    button:active { opacity: 0.7; }
+    #message { margin-top: 28px; font-weight: bold; min-height: 28px; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <main>
   <h1>Delete Account</h1>
-  <p>Sign in with Google to delete your Phys MCQ SprintX account.<br>Your data will be removed after login and deletion.</p>
+  <p>Sign in with Google below to delete your Phys MCQ SprintX account.</p>
   <button id="login">Sign in with Google</button>
   <div id="message"></div>
 </main>
 <script>
 const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
-const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
 
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -61,41 +62,46 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
+// 點擊按鈕，觸發 Google OAuth 登入
 loginBtn.addEventListener('click', async () => {
   messageEl.textContent = 'Opening Google sign-in...';
-  // Start OAuth sign-in (will create account if not exist)
-  const { error } = await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href }
+  });
   if (error) {
     messageEl.textContent = 'Login failed: ' + error.message;
   }
 });
 
-// Listen for session and delete
+// 監聽登入狀態改變
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     loginBtn.disabled = true;
     messageEl.textContent = 'Deleting account...';
     const token = session.access_token;
+
+    // 呼叫 Edge Function 刪除帳號（需確認此 function 會同時刪除用戶所有資料）
     try {
-      const res = await fetch(DELETE_FUNCTION_URL, {
+      const res = await fetch(SUPABASE_URL + '/functions/v1/delete_account', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+      const data = await res.json();
       if (res.ok) {
         messageEl.textContent = 'Account deletion complete.';
       } else {
-        const data = await res.json();
         messageEl.textContent = data.error || 'Account deletion failed.';
       }
     } catch (err) {
       messageEl.textContent = 'Error: ' + err;
     }
-    // Always sign out after
+    // 刪除完自動登出
     await supabaseClient.auth.signOut();
-    setTimeout(() => { window.location.reload(); }, 3000);
+    setTimeout(() => { window.location.reload(); }, 2200);
   }
 });
 </script>
