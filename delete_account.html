@@ -30,28 +30,12 @@
       width: 100%;
       text-align: center;
     }
-    h1 {
-      margin-bottom: 18px;
-      font-size: 2rem;
-      letter-spacing: 0.01em;
-      color: #262b36;
-    }
-    p {
-      margin-bottom: 26px;
-      font-size: 1.1rem;
-      color: #444;
-    }
+    h1 { margin-bottom: 18px; font-size: 2rem; letter-spacing: 0.01em; color: #262b36; }
+    p { margin-bottom: 26px; font-size: 1.1rem; color: #444; }
     button {
-      padding: 10px 26px;
-      border-radius: 999px;
-      background: #366cf6;
-      color: #fff;
-      border: none;
-      font-size: 1.05rem;
-      cursor: pointer;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(60,60,120,0.07);
-      transition: background 0.18s;
+      padding: 10px 26px; border-radius: 999px; background: #366cf6; color: #fff;
+      border: none; font-size: 1.05rem; cursor: pointer; font-weight: 500;
+      box-shadow: 0 2px 8px rgba(60,60,120,0.07); transition: background 0.18s;
     }
     button:disabled { opacity: 0.7; cursor: not-allowed; }
     #message { margin-top: 20px; font-weight: 500; min-height: 24px; }
@@ -74,7 +58,7 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
-// 自動檢查登入狀態並嘗試刪除
+// 登入後自動執行刪除帳號邏輯
 async function tryDeleteIfLoggedIn() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session && session.user) {
@@ -102,16 +86,23 @@ async function tryDeleteIfLoggedIn() {
       messageEl.textContent = 'Error: ' + err;
     }
     await supabaseClient.auth.signOut();
-    setTimeout(() => { window.location.href = window.location.pathname; }, 2200);
+    setTimeout(() => { window.location.href = window.location.pathname; }, 2000);
     return true;
   }
   return false;
 }
 
-// 載入頁面立即檢查 session 並自動刪除
-window.addEventListener('DOMContentLoaded', tryDeleteIfLoggedIn);
+// 特別處理：登入回來後 URL 有 access_token 時，強制刷新頁面再取得 session
+window.addEventListener('DOMContentLoaded', async () => {
+  if (window.location.hash.includes('access_token=')) {
+    // 解析 hash fragment，讓 Supabase 正確建立 session
+    await supabaseClient.auth.getSession(); // 觸發 session 設定
+    setTimeout(tryDeleteIfLoggedIn, 600);   // 稍微延遲確保 cookie 寫入
+    return;
+  }
+  tryDeleteIfLoggedIn();
+});
 
-// 點擊按鈕啟動 Google 登入
 loginBtn.addEventListener('click', async () => {
   messageEl.textContent = 'Opening Google sign-in...';
   loginBtn.disabled = true;
@@ -125,7 +116,6 @@ loginBtn.addEventListener('click', async () => {
   }
 });
 
-// 保險：偵測 Auth 狀態變化，確保登入即觸發刪除
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     await tryDeleteIfLoggedIn();
