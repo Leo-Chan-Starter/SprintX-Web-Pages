@@ -85,7 +85,12 @@ async function verifyAccount() {
     deleteBtn.style.display = 'inline-block';
   } else {
     messageEl.textContent = 'No such account found in the server';
-    google.accounts.id.revoke(data.email || '', () => {});
+    google.accounts.id.revoke(data.email || '', () => {
+      google.accounts.id.renderButton(
+        document.getElementById('g_id_signin'),
+        { theme: 'outline', size: 'large' }
+      );
+    });
     idToken = null;
   }
 }
@@ -105,7 +110,12 @@ async function deleteAccount() {
     messageEl.textContent = data.error || 'Deletion failed';
   }
   deleteBtn.style.display = 'none';
-  google.accounts.id.revoke(userEmail || '', () => {});
+  google.accounts.id.revoke(userEmail || '', () => {
+    google.accounts.id.renderButton(
+      document.getElementById('g_id_signin'),
+      { theme: 'outline', size: 'large' }
+    );
+  });
   idToken = null;
   userEmail = null;
 }
