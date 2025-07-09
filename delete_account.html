@@ -35,96 +35,82 @@
     }
     #message {margin-top:20px; font-weight:bold;}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <main>
   <h1>Delete Account</h1>
   <p>Sign in with Google below to verify your Phys MCQ SprintX account and delete it.</p>
-  <button id="login">Sign in with Google</button>
+  <div id="g_id_signin"></div>
   <button id="delete" style="display:none;">Delete Account</button>
   <div id="message"></div>
 </main>
 <script>
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
 const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
 const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
 
-// CDN 下直接用 supabase.createClient
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const loginBtn = document.getElementById('login');
 const deleteBtn = document.getElementById('delete');
 const messageEl = document.getElementById('message');
-let currentSession = null;
+let idToken = null;
+let userEmail = null;
 
-loginBtn.addEventListener('click', async () => {
-  const { error } = await supabaseClient.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: 'https://leo-chan-starter.github.io/SprintX-Web-Pages/delete_account.html'
-    }
-  });
-  if (error) {
-    messageEl.textContent = 'Login failed: ' + error.message;
-  }
+google.accounts.id.initialize({
+  client_id: GOOGLE_CLIENT_ID,
+  callback: handleCredentialResponse,
 });
 
-async function checkAccount(session) {
-  loginBtn.disabled = true;
+google.accounts.id.renderButton(
+  document.getElementById('g_id_signin'),
+  { theme: 'outline', size: 'large' }
+);
+
+function handleCredentialResponse(response) {
+  idToken = response.credential;
+  verifyAccount();
+}
+
+async function verifyAccount() {
   messageEl.textContent = 'Verifying account...';
-  const token = session.access_token;
-  try {
-    const { data: userData, error: userErr } = await supabaseClient.auth.getUser(token);
-    if (userErr || !userData?.user) {
-      messageEl.textContent = 'No such account found in the server';
-      await supabaseClient.auth.signOut();
-      loginBtn.disabled = false;
-      return;
-    }
-    currentSession = session;
+  deleteBtn.style.display = 'none';
+  const res = await fetch(DELETE_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken, check_only: true })
+  });
+  const data = await res.json();
+  if (res.ok && data.exists) {
+    userEmail = data.email;
     messageEl.textContent = 'Account found. Tap delete to continue.';
     deleteBtn.style.display = 'inline-block';
-  } catch (err) {
-    messageEl.textContent = 'Error: ' + err;
-    await supabaseClient.auth.signOut();
-    loginBtn.disabled = false;
+  } else {
+    messageEl.textContent = 'No such account found in the server';
+    google.accounts.id.revoke(data.email || '', () => {});
+    idToken = null;
   }
 }
 
 async function deleteAccount() {
-  if (!currentSession) return;
-  const token = currentSession.access_token;
+  if (!idToken) return;
   messageEl.textContent = 'Deleting account...';
-  try {
-    const res = await fetch(DELETE_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({})
-    });
-    const data = await res.json();
-    if (res.ok) {
-      messageEl.textContent = 'Account deletion complete.';
-    } else {
-      messageEl.textContent = data.error || 'Deletion failed';
-    }
-  } catch (err) {
-    messageEl.textContent = 'Error: ' + err;
+  const res = await fetch(DELETE_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    messageEl.textContent = 'Account deletion complete.';
+  } else {
+    messageEl.textContent = data.error || 'Deletion failed';
   }
   deleteBtn.style.display = 'none';
-  loginBtn.disabled = false;
-  await supabaseClient.auth.signOut();
-  currentSession = null;
+  google.accounts.id.revoke(userEmail || '', () => {});
+  idToken = null;
+  userEmail = null;
 }
 
 deleteBtn.addEventListener('click', deleteAccount);
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    checkAccount(session);
-  }
-});
-</script></body></html>
+</script>
+</body>
+</html>
