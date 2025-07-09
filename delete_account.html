@@ -42,39 +42,42 @@ loginBtn.addEventListener('click', async () => {
   }
 });
 
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    loginBtn.disabled = true;
-    messageEl.textContent = 'Verifying account...';
-    const token = session.access_token;
-    try {
-      const { data: userData, error: userErr } = await supabaseClient.auth.getUser(token);
-      if (userErr || !userData?.user) {
-        messageEl.textContent = 'No such account found in the server';
-        await supabaseClient.auth.signOut();
-        loginBtn.disabled = false;
-        return;
-      }
-      messageEl.textContent = 'Deleting account...';
-      const res = await fetch(DELETE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({})
-      });
-      const data = await res.json();
-      if (res.ok) {
-        messageEl.textContent = 'Account deletion complete.';
-      } else {
-        messageEl.textContent = data.error || 'No such account found.';
-      }
-    } catch (err) {
-      messageEl.textContent = 'Error: ' + err;
+async function verifyAndDelete(session) {
+  loginBtn.disabled = true;
+  messageEl.textContent = 'Verifying account...';
+  const token = session.access_token;
+  try {
+    const { data: userData, error: userErr } = await supabaseClient.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      messageEl.textContent = 'No such account found in the server';
+      await supabaseClient.auth.signOut();
+      loginBtn.disabled = false;
+      return;
     }
-    await supabaseClient.auth.signOut();
+    messageEl.textContent = 'Deleting account...';
+    const res = await fetch(DELETE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      messageEl.textContent = 'Account deletion complete.';
+    } else {
+      messageEl.textContent = data.error || 'Deletion failed';
+    }
+  } catch (err) {
+    messageEl.textContent = 'Error: ' + err;
+  }
+  await supabaseClient.auth.signOut();
+}
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    verifyAndDelete(session);
   }
 });
-</script>
-</body></html>
+</script></body></html>

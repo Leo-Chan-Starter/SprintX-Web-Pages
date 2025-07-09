@@ -5,16 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy</title>
   <style>
-    body {font-family: 'Segoe UI', Arial, sans-serif; margin:0; padding:0; background:#eef1f5; color:#333; line-height:1.6;}
-    header {background:#4a90e2; color:#fff; padding:20px 10px; text-align:center;}
-    main {background:#fff; padding:20px; border-radius:8px; max-width:800px; margin:20px auto; box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    h2 {color:#4a90e2; margin-top:1.5em;}
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      background: linear-gradient(135deg,#283593,#6A1B9A);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      line-height:1.6;
+    }
+    .card {
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background-color: rgba(255,255,255,0.25);
+      border-radius: 20px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.25);
+      padding:20px;
+      max-width:800px;
+      width:100%;
+    }
+    header {text-align:center; margin-bottom:20px;}
+    h2 {color:#FFEE58; margin-top:1.5em;}
     section {margin-bottom:20px;}
-    footer {text-align:center; margin:20px 0; font-size:14px; color:#555;}
-    a {color:#4a90e2;}
+    footer {text-align:center; margin:20px 0; font-size:14px; color:#eee;}
+    a {color:#FFEE58;}
   </style>
 </head>
 <body>
+<div class="card">
 <header>
   <h1>Phys MCQ SprintX</h1>
 </header>
@@ -39,5 +60,6 @@
   </section>
 </main>
 <footer>&copy; 2024 Phys MCQ SprintX</footer>
+</div>
 </body>
 </html>
