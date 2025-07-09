@@ -5,43 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Delete Account</title>
   <style>
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
+    html, body {
+      height: 100%;
       margin: 0;
-      padding: 20px;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
       min-height: 100vh;
-      background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+      background: linear-gradient(135deg,#f5f7fa,#c3cfe2 90%);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #333;
+      font-family: 'Segoe UI', Arial, sans-serif;
     }
     main {
       backdrop-filter: blur(16px) saturate(180%);
       -webkit-backdrop-filter: blur(16px) saturate(180%);
-      background-color: rgba(255,255,255,0.55);
+      background-color: rgba(255,255,255,0.65);
       border-radius: 20px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.10);
-      padding: 32px 20px;
-      max-width: 440px;
+      box-shadow: 0 8px 24px rgba(50,50,100,0.07);
+      padding: 32px 30px 26px 30px;
+      max-width: 400px;
       width: 100%;
       text-align: center;
     }
-    button {
-      padding: 10px 24px;
-      font-size: 17px;
-      font-weight: bold;
-      border-radius: 12px;
-      border: none;
-      margin-top: 30px;
-      background: linear-gradient(90deg, #4f8cff 10%, #79f1fc 90%);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(80,120,200,0.1);
-      cursor: pointer;
-      transition: opacity 0.2s;
+    h1 {
+      margin-bottom: 18px;
+      font-size: 2rem;
+      letter-spacing: 0.01em;
     }
-    button:active { opacity: 0.7; }
-    #message { margin-top: 28px; font-weight: bold; min-height: 28px; }
+    p {
+      margin-bottom: 26px;
+      font-size: 1.1rem;
+      color: #444;
+    }
+    button {
+      padding: 10px 26px;
+      border-radius: 999px;
+      background: #366cf6;
+      color: #fff;
+      border: none;
+      font-size: 1.05rem;
+      cursor: pointer;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(60,60,120,0.07);
+      transition: background 0.18s;
+    }
+    button:disabled { opacity: 0.7; cursor: not-allowed; }
+    #message { margin-top: 20px; font-weight: 500; min-height: 24px; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -55,34 +67,34 @@
 <script>
 const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
-
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
-// 點擊按鈕，觸發 Google OAuth 登入
+// 點擊登入，使用 Google 並導回本頁（自己）
 loginBtn.addEventListener('click', async () => {
   messageEl.textContent = 'Opening Google sign-in...';
+  loginBtn.disabled = true;
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.href }
   });
   if (error) {
     messageEl.textContent = 'Login failed: ' + error.message;
+    loginBtn.disabled = false;
   }
 });
 
-// 監聽登入狀態改變
+// 登入成功自動執行刪除
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     loginBtn.disabled = true;
     messageEl.textContent = 'Deleting account...';
     const token = session.access_token;
-
-    // 呼叫 Edge Function 刪除帳號（需確認此 function 會同時刪除用戶所有資料）
     try {
+      // 呼叫 Edge Function 並附帶 JWT Token
       const res = await fetch(SUPABASE_URL + '/functions/v1/delete_account', {
         method: 'POST',
         headers: {
@@ -90,18 +102,20 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
           'Content-Type': 'application/json'
         }
       });
-      const data = await res.json();
+      let data = {};
+      try { data = await res.json(); } catch (e) {}
       if (res.ok) {
         messageEl.textContent = 'Account deletion complete.';
+      } else if (data && data.error && (data.error.includes('not found') || data.error.includes('No such'))) {
+        messageEl.textContent = 'No such account found in the server.';
       } else {
         messageEl.textContent = data.error || 'Account deletion failed.';
       }
     } catch (err) {
       messageEl.textContent = 'Error: ' + err;
     }
-    // 刪除完自動登出
     await supabaseClient.auth.signOut();
-    setTimeout(() => { window.location.reload(); }, 2200);
+    setTimeout(() => { window.location.href = window.location.pathname; }, 2200);
   }
 });
 </script>
