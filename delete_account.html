@@ -5,9 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Delete Account</title>
   <style>
-    body {font-family: Arial, sans-serif; margin: 40px; background:#f7f7f7;}
-    main {background:#fff; padding:20px; border-radius:8px; max-width:600px; margin:auto; box-shadow:0 2px 4px rgba(0,0,0,0.1); text-align:center;}
-    button {padding:10px 20px; font-size:16px; cursor:pointer;}
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      background: linear-gradient(135deg,#f5f7fa,#c3cfe2);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#333;
+    }
+    main {
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background-color: rgba(255,255,255,0.55);
+      border-radius:20px;
+      box-shadow:0 8px 16px rgba(0,0,0,0.1);
+      padding:30px;
+      max-width:600px;
+      width:100%;
+      text-align:center;
+    }
+    button {
+      padding:10px 20px;
+      font-size:16px;
+      cursor:pointer;
+      margin-top:10px;
+    }
     #message {margin-top:20px; font-weight:bold;}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -15,8 +40,9 @@
 <body>
 <main>
   <h1>Delete Account</h1>
-  <p>Sign in with Google below to permanently delete your Phys MCQ SprintX account. Logging in on this page will immediately remove your account and all stored data.</p>
+  <p>Sign in with Google below to verify your Phys MCQ SprintX account and delete it.</p>
   <button id="login">Sign in with Google</button>
+  <button id="delete" style="display:none;">Delete Account</button>
   <div id="message"></div>
 </main>
 <script>
@@ -28,7 +54,9 @@ const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginBtn = document.getElementById('login');
+const deleteBtn = document.getElementById('delete');
 const messageEl = document.getElementById('message');
+let currentSession = null;
 
 loginBtn.addEventListener('click', async () => {
   const { error } = await supabaseClient.auth.signInWithOAuth({
@@ -42,7 +70,7 @@ loginBtn.addEventListener('click', async () => {
   }
 });
 
-async function verifyAndDelete(session) {
+async function checkAccount(session) {
   loginBtn.disabled = true;
   messageEl.textContent = 'Verifying account...';
   const token = session.access_token;
@@ -54,7 +82,21 @@ async function verifyAndDelete(session) {
       loginBtn.disabled = false;
       return;
     }
-    messageEl.textContent = 'Deleting account...';
+    currentSession = session;
+    messageEl.textContent = 'Account found. Tap delete to continue.';
+    deleteBtn.style.display = 'inline-block';
+  } catch (err) {
+    messageEl.textContent = 'Error: ' + err;
+    await supabaseClient.auth.signOut();
+    loginBtn.disabled = false;
+  }
+}
+
+async function deleteAccount() {
+  if (!currentSession) return;
+  const token = currentSession.access_token;
+  messageEl.textContent = 'Deleting account...';
+  try {
     const res = await fetch(DELETE_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -72,12 +114,17 @@ async function verifyAndDelete(session) {
   } catch (err) {
     messageEl.textContent = 'Error: ' + err;
   }
+  deleteBtn.style.display = 'none';
+  loginBtn.disabled = false;
   await supabaseClient.auth.signOut();
+  currentSession = null;
 }
+
+deleteBtn.addEventListener('click', deleteAccount);
 
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN' && session) {
-    verifyAndDelete(session);
+    checkAccount(session);
   }
 });
 </script></body></html>
