@@ -73,28 +73,14 @@ const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
-// 點擊登入，使用 Google 並導回本頁（自己）
-loginBtn.addEventListener('click', async () => {
-  messageEl.textContent = 'Opening Google sign-in...';
-  loginBtn.disabled = true;
-  const { error } = await supabaseClient.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.href }
-  });
-  if (error) {
-    messageEl.textContent = 'Login failed: ' + error.message;
-    loginBtn.disabled = false;
-  }
-});
-
-// 登入成功自動執行刪除
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
+// 統一管理自動刪除程序
+async function tryDeleteIfLoggedIn() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session && session.user) {
     loginBtn.disabled = true;
     messageEl.textContent = 'Deleting account...';
     const token = session.access_token;
     try {
-      // 呼叫 Edge Function 並附帶 JWT Token
       const res = await fetch(SUPABASE_URL + '/functions/v1/delete_account', {
         method: 'POST',
         headers: {
@@ -116,6 +102,31 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     }
     await supabaseClient.auth.signOut();
     setTimeout(() => { window.location.href = window.location.pathname; }, 2200);
+    return true;
+  }
+  return false;
+}
+
+// 進站就檢查有沒有登入
+window.addEventListener('DOMContentLoaded', tryDeleteIfLoggedIn);
+
+loginBtn.addEventListener('click', async () => {
+  messageEl.textContent = 'Opening Google sign-in...';
+  loginBtn.disabled = true;
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href }
+  });
+  if (error) {
+    messageEl.textContent = 'Login failed: ' + error.message;
+    loginBtn.disabled = false;
+  }
+});
+
+// 監聽登入事件（適用於單頁無 reload 的情境，強化保險）
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    await tryDeleteIfLoggedIn();
   }
 });
 </script>
