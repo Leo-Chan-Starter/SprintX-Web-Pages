@@ -34,7 +34,7 @@ loginBtn.addEventListener('click', async () => {
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.href
+      redirectTo: 'https://leo-chan-starter.github.io/SprintX-Web-Pages/delete_account.html'
     }
   });
   if (error) {
@@ -45,9 +45,17 @@ loginBtn.addEventListener('click', async () => {
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     loginBtn.disabled = true;
-    messageEl.textContent = 'Deleting account...';
+    messageEl.textContent = 'Verifying account...';
     const token = session.access_token;
     try {
+      const { data: userData, error: userErr } = await supabaseClient.auth.getUser(token);
+      if (userErr || !userData?.user) {
+        messageEl.textContent = 'No such account found in the server';
+        await supabaseClient.auth.signOut();
+        loginBtn.disabled = false;
+        return;
+      }
+      messageEl.textContent = 'Deleting account...';
       const res = await fetch(DELETE_FUNCTION_URL, {
         method: 'POST',
         headers: {
@@ -69,5 +77,4 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
   }
 });
 </script>
-</body>
-</html>
+</body></html>
