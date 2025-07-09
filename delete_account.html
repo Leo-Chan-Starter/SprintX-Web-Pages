@@ -1,134 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Delete Account</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      min-height: 100vh;
-      background: linear-gradient(135deg,#f5f7fa,#c3cfe2 90%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Segoe UI', Arial, sans-serif;
-    }
-    main {
-      backdrop-filter: blur(16px) saturate(180%);
-      -webkit-backdrop-filter: blur(16px) saturate(180%);
-      background-color: rgba(255,255,255,0.65);
-      border-radius: 20px;
-      box-shadow: 0 8px 24px rgba(50,50,100,0.07);
-      padding: 32px 30px 26px 30px;
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-    }
-    h1 {
-      margin-bottom: 18px;
-      font-size: 2rem;
-      letter-spacing: 0.01em;
-    }
-    p {
-      margin-bottom: 26px;
-      font-size: 1.1rem;
-      color: #444;
-    }
-    button {
-      padding: 10px 26px;
-      border-radius: 999px;
-      background: #366cf6;
-      color: #fff;
-      border: none;
-      font-size: 1.05rem;
-      cursor: pointer;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(60,60,120,0.07);
-      transition: background 0.18s;
-    }
-    button:disabled { opacity: 0.7; cursor: not-allowed; }
-    #message { margin-top: 20px; font-weight: 500; min-height: 24px; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-<main>
-  <h1>Delete Account</h1>
-  <p>Sign in with Google below to delete your Phys MCQ SprintX account.</p>
-  <button id="login">Sign in with Google</button>
-  <div id="message"></div>
-</main>
-<script>
-const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// deno-lint-ignore-file no-explicit-any
+// 此 Edge Function 部署於 Supabase，命名為 delete_account
 
-const loginBtn = document.getElementById('login');
-const messageEl = document.getElementById('message');
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.6";
 
-// 統一管理自動刪除程序
-async function tryDeleteIfLoggedIn() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session && session.user) {
-    loginBtn.disabled = true;
-    messageEl.textContent = 'Deleting account...';
-    const token = session.access_token;
-    try {
-      const res = await fetch(SUPABASE_URL + '/functions/v1/delete_account', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      let data = {};
-      try { data = await res.json(); } catch (e) {}
-      if (res.ok) {
-        messageEl.textContent = 'Account deletion complete.';
-      } else if (data && data.error && (data.error.includes('not found') || data.error.includes('No such'))) {
-        messageEl.textContent = 'No such account found in the server.';
-      } else {
-        messageEl.textContent = data.error || 'Account deletion failed.';
-      }
-    } catch (err) {
-      messageEl.textContent = 'Error: ' + err;
-    }
-    await supabaseClient.auth.signOut();
-    setTimeout(() => { window.location.href = window.location.pathname; }, 2200);
-    return true;
-  }
-  return false;
+// 取得 Supabase Project URL 與 Service Role Key（僅可用於 Edge Function）
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+if (!supabaseUrl || !serviceRoleKey) {
+  throw new Error("Missing Supabase environment variables");
+}
+// 用 Service Role 權限建立 Supabase client
+const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+// 設定 CORS，允許前端跨網域呼叫
+const corsHeaders = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Credentials": "true",
+};
+
+// 你所有用戶資料表（根據實際狀況補齊）
+const TABLES_TO_CLEAN = [
+  "question_status", 
+  "concept_status", 
+  "suggestions",
+  // "profiles", // 如果你有自訂 user profile 表請加上
+];
+
+// 刪除所有與該 user 相關的資料
+async function deleteUserData(userId: string) {
+  await Promise.all(
+    TABLES_TO_CLEAN.map((table) =>
+      supabase.from(table).delete().eq("user_id", userId)
+    )
+  );
 }
 
-// 進站就檢查有沒有登入
-window.addEventListener('DOMContentLoaded', tryDeleteIfLoggedIn);
+// Edge Function 主程式
+serve(async (req: Request) => {
+  // 處理 CORS 預檢請求
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-loginBtn.addEventListener('click', async () => {
-  messageEl.textContent = 'Opening Google sign-in...';
-  loginBtn.disabled = true;
-  const { error } = await supabaseClient.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.href }
-  });
-  if (error) {
-    messageEl.textContent = 'Login failed: ' + error.message;
-    loginBtn.disabled = false;
+  // 僅允許 POST 請求
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
+  }
+
+  // 取得 Authorization header 並驗證
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Unauthorized (no token)" }), {
+      status: 401,
+      headers: corsHeaders,
+    });
+  }
+
+  // 檢查該用戶是否存在於 Auth
+  const { data, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !data?.user) {
+    return new Response(JSON.stringify({ error: "No such account found in the server" }), {
+      status: 404,
+      headers: corsHeaders,
+    });
+  }
+
+  const userId = data.user.id;
+
+  // 執行資料刪除與帳號刪除
+  try {
+    await deleteUserData(userId);
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: corsHeaders,
+      });
+    }
+    return new Response(JSON.stringify({ message: "Account and all data deleted" }), {
+      status: 200,
+      headers: corsHeaders,
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 });
-
-// 監聽登入事件（適用於單頁無 reload 的情境，強化保險）
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    await tryDeleteIfLoggedIn();
-  }
-});
-</script>
-</body>
-</html>
