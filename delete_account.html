@@ -36,24 +36,22 @@
     #message {margin-top:20px; font-weight:bold;}
   </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <main>
   <h1>Delete Account</h1>
-  <p>Sign in with Google below to verify your Phys MCQ SprintX account and delete it.</p>
+  <p>Sign in with Google below to delete your Phys MCQ SprintX account.</p>
   <div id="g_id_signin"></div>
-  <button id="delete" style="display:none;">Delete Account</button>
   <div id="message"></div>
 </main>
 <script>
 const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
 const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
-const DELETE_FUNCTION_URL = SUPABASE_URL + '/functions/v1/delete_account';
-
-const deleteBtn = document.getElementById('delete');
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const messageEl = document.getElementById('message');
 let idToken = null;
-let userEmail = null;
 
 google.accounts.id.initialize({
   client_id: GOOGLE_CLIENT_ID,
@@ -67,60 +65,29 @@ google.accounts.id.renderButton(
 
 function handleCredentialResponse(response) {
   idToken = response.credential;
-  verifyAccount();
+  signInAndDelete();
 }
 
-async function verifyAccount() {
-  messageEl.textContent = 'Verifying account...';
-  deleteBtn.style.display = 'none';
-  const res = await fetch(DELETE_FUNCTION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id_token: idToken, check_only: true })
+async function signInAndDelete() {
+  messageEl.textContent = 'Signing in...';
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: 'google',
+    idToken,
   });
-  const data = await res.json();
-  if (res.ok && data.exists) {
-    userEmail = data.email;
-    messageEl.textContent = 'Account found. Tap delete to continue.';
-    deleteBtn.style.display = 'inline-block';
-  } else {
-    messageEl.textContent = 'No such account found in the server';
-    google.accounts.id.revoke(data.email || '', () => {
-      google.accounts.id.renderButton(
-        document.getElementById('g_id_signin'),
-        { theme: 'outline', size: 'large' }
-      );
-    });
-    idToken = null;
+  if (error) {
+    messageEl.textContent = 'Login failed';
+    return;
   }
-}
-
-async function deleteAccount() {
-  if (!idToken) return;
   messageEl.textContent = 'Deleting account...';
-  const res = await fetch(DELETE_FUNCTION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id_token: idToken })
-  });
-  const data = await res.json();
-  if (res.ok) {
-    messageEl.textContent = 'Account deletion complete.';
+  const { error: delError } = await supabase.functions.invoke('delete_account');
+  if (delError) {
+    messageEl.textContent = delError.message || 'Deletion failed';
   } else {
-    messageEl.textContent = data.error || 'Deletion failed';
+    messageEl.textContent = 'Account deletion complete.';
   }
-  deleteBtn.style.display = 'none';
-  google.accounts.id.revoke(userEmail || '', () => {
-    google.accounts.id.renderButton(
-      document.getElementById('g_id_signin'),
-      { theme: 'outline', size: 'large' }
-    );
-  });
+  await supabase.auth.signOut();
   idToken = null;
-  userEmail = null;
 }
-
-deleteBtn.addEventListener('click', deleteAccount);
 </script>
 </body>
 </html>
