@@ -90,28 +90,33 @@ async function handleOAuthRedirect() {
   // 自動檢查登入狀態並嘗試刪除
   async function tryDeleteIfLoggedIn() {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session && session.user) {
-      loginBtn.disabled = true;
-      messageEl.textContent = 'Deleting account...';
-      try {
-        const { error } = await supabaseClient.functions.invoke('delete_account', {
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (!error) {
-          messageEl.textContent = 'Account deletion complete.';
-        } else if (error.message.includes('not found') || error.message.includes('No such')) {
+    if (!session || !session.user) {
+      return false;
+    }
+    loginBtn.disabled = true;
+    messageEl.textContent = 'Deleting account...';
+    try {
+      const { error } = await supabaseClient.functions.invoke('delete_account', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (error) {
+        if (error.message.includes('not found') || error.message.includes('No such')) {
           messageEl.textContent = 'No such account found in the server.';
         } else {
           messageEl.textContent = error.message || 'Account deletion failed.';
         }
-      } catch (err) {
-        messageEl.textContent = 'Error: ' + err;
+        loginBtn.disabled = false;
+        return false;
       }
+      messageEl.textContent = 'Account deletion complete. Signing out...';
       await supabaseClient.auth.signOut();
-      setTimeout(() => { window.location.href = window.location.pathname; }, 2200);
+      setTimeout(() => { window.location.reload(); }, 2200);
       return true;
+    } catch (err) {
+      messageEl.textContent = 'Error: ' + err;
+      loginBtn.disabled = false;
+      return false;
     }
-    return false;
   }
 
 // 載入頁面先處理 OAuth 回傳再檢查 session
