@@ -5,56 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Delete Account</title>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    html, body { height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      min-height: 100vh;
-      background: linear-gradient(135deg,#f5f7fa,#c3cfe2 90%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh; background: linear-gradient(135deg,#f5f7fa,#c3cfe2 90%);
+      display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Arial, sans-serif;
     }
     main {
       backdrop-filter: blur(16px) saturate(180%);
       -webkit-backdrop-filter: blur(16px) saturate(180%);
       background-color: rgba(255,255,255,0.68);
-      border-radius: 20px;
-      box-shadow: 0 8px 24px rgba(50,50,100,0.09);
-      padding: 36px 32px 26px 32px;
-      max-width: 410px;
-      width: 100%;
-      text-align: center;
+      border-radius: 20px; box-shadow: 0 8px 24px rgba(50,50,100,0.09);
+      padding: 36px 32px 26px 32px; max-width: 410px; width: 100%; text-align: center;
     }
-    h1 {
-      margin-bottom: 18px;
-      font-size: 2rem;
-      letter-spacing: 0.01em;
-      color: #262b36;
-    }
-    p {
-      margin-bottom: 26px;
-      font-size: 1.1rem;
-      color: #444;
-    }
+    h1 { margin-bottom: 18px; font-size: 2rem; letter-spacing: 0.01em; color: #262b36; }
+    p { margin-bottom: 26px; font-size: 1.1rem; color: #444; }
     button {
-      padding: 10px 26px;
-      border-radius: 999px;
-      background: #366cf6;
-      color: #fff;
-      border: none;
-      font-size: 1.05rem;
-      cursor: pointer;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(60,60,120,0.07);
+      padding: 10px 26px; border-radius: 999px; background: #366cf6; color: #fff; border: none;
+      font-size: 1.05rem; cursor: pointer; font-weight: 500; box-shadow: 0 2px 8px rgba(60,60,120,0.07);
       transition: background 0.18s;
     }
     button:disabled { opacity: 0.7; cursor: not-allowed; }
-    #message { margin-top: 20px; font-weight: 500; min-height: 24px; }
+    #message { margin-top: 20px; font-weight: 500; min-height: 24px; color: #b22e2e; }
+    #message.success { color: #128a33; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -68,13 +40,19 @@
 <script>
 const SUPABASE_URL = 'https://cexirghnplvnxxaedpny.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNleGlyZ2hucGx2bnh4YWVkcG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzAxNjEsImV4cCI6MjA2NjQ0NjE2MX0.53fYhf4QqUT20QSLLwpQPJ4NWzlbNAGpDPUscrk8z-g';
+const DELETE_ACCOUNT_EDGE_FUNCTION_URL = 'https://cexirghnplvnxxaedpny.supabase.co/functions/v1/delete_account';
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginBtn = document.getElementById('login');
 const messageEl = document.getElementById('message');
 
-// OAuth redirect 處理：若 URL 含 code 則交換 Session
+function setMessage(text, success=false) {
+  messageEl.textContent = text;
+  messageEl.className = success ? "success" : "";
+}
+
+// 處理 OAuth redirect (含 code 或 access_token)
 async function handleOAuthRedirect() {
   const url = new URL(window.location.href);
   const code = url.searchParams.get('code');
@@ -87,59 +65,60 @@ async function handleOAuthRedirect() {
   }
 }
 
-  // 自動檢查登入狀態並嘗試刪除
-  async function tryDeleteIfLoggedIn() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session || !session.user) {
-      return false;
-    }
-    loginBtn.disabled = true;
-    messageEl.textContent = 'Deleting account...';
-    try {
-      const { error } = await supabaseClient.functions.invoke('delete_account', {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (error) {
-        if (error.message.includes('not found') || error.message.includes('No such')) {
-          messageEl.textContent = 'No such account found in the server.';
-        } else {
-          messageEl.textContent = error.message || 'Account deletion failed.';
-        }
-        loginBtn.disabled = false;
-        return false;
-      }
-      messageEl.textContent = 'Account deletion complete. Signing out...';
-      await supabaseClient.auth.signOut();
-      setTimeout(() => { window.location.reload(); }, 2200);
-      return true;
-    } catch (err) {
-      messageEl.textContent = 'Error: ' + err;
+// 登入後自動刪除帳號
+async function tryDeleteIfLoggedIn() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session || !session.user) return false;
+  loginBtn.disabled = true;
+  setMessage('Deleting account...');
+  try {
+    // 用 Edge Function URL 直接 fetch 呼叫
+    const res = await fetch(DELETE_ACCOUNT_EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    if (!res.ok) {
+      let msg = `Account deletion failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body.error) msg = body.error;
+      } catch {}
+      setMessage(msg);
       loginBtn.disabled = false;
       return false;
     }
+    setMessage('Account deletion complete. Signing out...', true);
+    await supabaseClient.auth.signOut();
+    setTimeout(() => { window.location.reload(); }, 2000);
+    return true;
+  } catch (err) {
+    setMessage('Error: ' + err);
+    loginBtn.disabled = false;
+    return false;
   }
+}
 
-// 載入頁面先處理 OAuth 回傳再檢查 session
+// 進頁自動檢查（處理 code → session → 刪除）
 window.addEventListener('DOMContentLoaded', async () => {
   await handleOAuthRedirect();
   await tryDeleteIfLoggedIn();
 });
 
-// 點擊按鈕啟動 Google 登入
+// 點擊登入按鈕（Google OAuth）
 loginBtn.addEventListener('click', async () => {
-  messageEl.textContent = 'Opening Google sign-in...';
+  setMessage('Opening Google sign-in...');
   loginBtn.disabled = true;
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.href }
   });
   if (error) {
-    messageEl.textContent = 'Login failed: ' + error.message;
+    setMessage('Login failed: ' + error.message);
     loginBtn.disabled = false;
   }
 });
 
-// 保險：偵測 Auth 狀態變化，確保登入即觸發刪除
+// 保險，登入後自動刪除
 supabaseClient.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     await tryDeleteIfLoggedIn();
